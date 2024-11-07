@@ -20,10 +20,10 @@ This module implements STRIP: A Defence Against Trojan Attacks on Deep Neural Ne
 
 | Paper link: https://arxiv.org/abs/1902.06531
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
-from typing import Optional, TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -32,8 +32,6 @@ from art.estimators.poison_mitigation.strip import STRIPMixin
 
 if TYPE_CHECKING:
     from art.utils import CLASSIFIER_TYPE
-
-    ClassifierWithStrip = TypeVar("ClassifierWithStrip", CLASSIFIER_TYPE, STRIPMixin)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +61,7 @@ class STRIP(Transformer):
         self,
         num_samples: int = 20,
         false_acceptance_rate: float = 0.01,
-    ) -> "ClassifierWithStrip":
+    ) -> "CLASSIFIER_TYPE":
         """
         Create a STRIP defense
 
@@ -82,7 +80,7 @@ class STRIP(Transformer):
 
         return self.classifier  # type: ignore
 
-    def fit(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> None:
+    def fit(self, x: np.ndarray, y: np.ndarray | None = None, **kwargs) -> None:
         """
         No parameters to learn for this method; do nothing.
         """

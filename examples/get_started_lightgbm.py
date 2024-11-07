@@ -4,6 +4,7 @@ dataset and creates adversarial examples using the Fast Gradient Sign Method. He
 the model, it would also be possible to provide a pretrained model to the ART classifier.
 The parameters are chosen for reduced computational requirements of the script and not optimised for accuracy.
 """
+
 import lightgbm as lgb
 import numpy as np
 
@@ -27,7 +28,7 @@ x_test = x_test.reshape((nb_samples_test, 28 * 28))
 
 # Step 2: Create the model
 
-params = {"objective": "multiclass", "metric": "multi_logloss", "num_class": 10}
+params = {"objective": "multiclass", "metric": "multi_logloss", "num_class": 10, "force_col_wise": True}
 train_set = lgb.Dataset(x_train, label=np.argmax(y_train, axis=1))
 test_set = lgb.Dataset(x_test, label=np.argmax(y_test, axis=1))
 model = lgb.train(params=params, train_set=train_set, num_boost_round=100, valid_sets=[test_set])

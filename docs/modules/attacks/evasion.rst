@@ -86,6 +86,12 @@ Carlini and Wagner ASR Attack
    :members:
    :special-members:
 
+Composite Adversarial Attack - PyTorch
+--------------------------------------
+.. autoclass:: CompositeAdversarialAttackPyTorch
+   :members:
+   :special-members:
+
 Decision Tree Attack
 --------------------
 .. autoclass:: DecisionTreeAttack
@@ -245,6 +251,12 @@ Malware Gradient Descent - TensorFlow
 Over The Air Flickering Attack - PyTorch
 ----------------------------------------
 .. autoclass:: OverTheAirFlickeringPyTorch
+   :members:
+   :special-members:
+
+Overload Attack - PyTorch
+-------------------------
+.. autoclass:: OverloadPyTorch
    :members:
    :special-members:
 

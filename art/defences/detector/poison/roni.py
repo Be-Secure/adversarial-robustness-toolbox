@@ -21,11 +21,12 @@ This module implements the Reject on Negative Impact (RONI) defense by Nelson et
 | Paper link: https://people.eecs.berkeley.edu/~tygar/papers/SML/misleading.learners.pdf
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
+from collections.abc import Callable
 import logging
 from copy import deepcopy
-from typing import Callable, List, Tuple, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -66,7 +67,7 @@ class RONIDefense(PoisonFilteringDefence):
         y_train: np.ndarray,
         x_val: np.ndarray,
         y_val: np.ndarray,
-        perf_func: Union[str, Callable] = "accuracy",
+        perf_func: str | Callable = "accuracy",
         pp_cal: float = 0.2,
         pp_quiz: float = 0.2,
         calibrated: bool = True,
@@ -99,7 +100,7 @@ class RONIDefense(PoisonFilteringDefence):
         self.x_val = x_val
         self.y_val = y_val
         self.perf_func = perf_func
-        self.is_clean_lst: List[int] = []
+        self.is_clean_lst: list[int] = []
         self._check_params()
 
     def evaluate_defence(self, is_clean: np.ndarray, **kwargs) -> str:
@@ -121,7 +122,7 @@ class RONIDefense(PoisonFilteringDefence):
         _, conf_matrix = self.evaluator.analyze_correctness([self.is_clean_lst], [is_clean])  # type: ignore
         return conf_matrix
 
-    def detect_poison(self, **kwargs) -> Tuple[dict, List[int]]:
+    def detect_poison(self, **kwargs) -> tuple[dict, list[int]]:
         """
         Returns poison detected and a report.
 
@@ -178,11 +179,11 @@ class RONIDefense(PoisonFilteringDefence):
         """
         if self.calibrated:
             median, std_dev = self.get_calibration_info(before_classifier)
-            return perf_shift < median - 3 * std_dev
+            return bool(perf_shift < median - 3 * std_dev)
 
-        return perf_shift < -self.eps
+        return bool(perf_shift < -self.eps)
 
-    def get_calibration_info(self, before_classifier: "CLASSIFIER_TYPE") -> Tuple[np.ndarray, np.ndarray]:
+    def get_calibration_info(self, before_classifier: "CLASSIFIER_TYPE") -> tuple[float, float]:
         """
         Calculate the median and standard deviation of the accuracy shifts caused
         by the calibration set.
@@ -205,7 +206,7 @@ class RONIDefense(PoisonFilteringDefence):
                 )
             )
 
-        return np.median(accs), np.std(accs)
+        return float(np.median(accs)), float(np.std(accs))
 
     def _check_params(self) -> None:
         if len(self.x_train) != len(self.y_train):

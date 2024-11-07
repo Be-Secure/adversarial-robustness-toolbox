@@ -66,6 +66,10 @@ models.
 [attack_adversarial_patch_faster_rcnn.ipynb](adversarial_patch/attack_adversarial_patch_faster_rcnn.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/adversarial_patch/attack_adversarial_patch_faster_rcnn.ipynb)]
 shows how to set up a TFv2 Faster R-CNN object detector with ART and create an adversarial patch attack that fools the detector.
 
+[attack_adversarial_patch_detr.ipynb](adversarial_patch/attack_adversarial_patch_detr.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/adversarial_patch/attack_adversarial_patch_detr.ipynb)]
+shows how to set up the DEtection TRansformer (DETR) with ART for object detection and create an adversarial patch attack that fools the detector.
+
+
 <p align="center">
   <img src="../utils/data/images/adversarial_patch.png?raw=true" width="200" title="adversarial_patch">
 </p>
@@ -103,6 +107,13 @@ demonstrates a MembershipInferenceBlackBox membership inference attack using sha
 
 [label_only_membership_inference.ipynb](label_only_membership_inference.ipynb) [[on nbviewer](https://nbviewer.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/label_only_membership_inference.ipynb)]
 demonstrates a LabelOnlyDecisionBoundary membership inference attack on a PyTorch classifier for the MNIST dataset.
+
+[composite-adversarial-attack.ipynb](composite-adversarial-attack.ipynb)[[on nbviewer](https://nbviewer.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/composite-adversarial-attack.ipynb)]
+shows how to launch Composite Adversarial Attack (CAA) on Pytorch-based model ([Hsiung et al., 2023](https://arxiv.org/abs/2202.04235)).
+CAA composites the perturbations in Lp-ball and semantic space (i.e., hue, saturation, rotation, brightness, and contrast),
+and is able to optimize the attack sequence and each attack component, thereby enhancing the efficiency and efficacy of adversarial examples.
+
+[overload-attack.ipynb](overload-attack.ipynb) [[on nbviewer](https://nbviewer.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/overload-attack.ipynb)]  exploits for latency attacks on objection detection using the YOLOv5 model.
 
 ## Metrics
 
@@ -292,7 +303,21 @@ demonstrates using interval bound propagation for certification of neural networ
   <img src="../utils/data/images/IBP_certification.png?raw=true" width="200" title="IBP certification">
 </p>
 
+[smoothed_vision_transformers.ipynb](smoothed_vision_transformers.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/smoothed_vision_transformers.ipynb)]
+Demonstrates training a neural network using smoothed vision transformers for certified performance against patch attacks.
+
 ## MNIST
 
 [fabric_for_deep_learning_adversarial_samples_fashion_mnist.ipynb](fabric_for_deep_learning_adversarial_samples_fashion_mnist.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/fabric_for_deep_learning_adversarial_samples_fashion_mnist.ipynb)]
 shows how to use ART with deep learning models trained with the Fabric for Deep Learning (FfDL).
+
+## Hugging Face
+
+[huggingface_notebook.ipynb](huggingface_notebook.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/huggingface_notebook.ipynb)]
+shows how to use ART with the Hugging Face API for image classification tasks.
+
+[hugging_face_evasion.ipynb](hugging_face_evasion.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/hugging_face_evasion.ipynb)]
+shows how to use ART to perform evasion attacks on Hugging Face image classification models and defend them using adversarial training.
+
+[hugging_face_poisoning.ipynb](hugging_face_poisoning.ipynb) [[on nbviewer](https://nbviewer.jupyter.org/github/Trusted-AI/adversarial-robustness-toolbox/blob/main/notebooks/hugging_face_poisoning.ipynb)]
+shows how to use ART to perform poison Hugging Face image classification models and defend them using poisoning defenses.

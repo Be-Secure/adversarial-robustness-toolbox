@@ -20,10 +20,10 @@ This module implements the BadDet Global Misclassification Attack (GMA) on objec
 
 | Paper link: https://arxiv.org/abs/2205.14497
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
-from typing import Dict, List, Tuple
+
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -75,38 +75,41 @@ class BadDetGlobalMisclassificationAttack(PoisoningAttackObjectDetector):
         self.verbose = verbose
         self._check_params()
 
-    def poison(  # pylint: disable=W0221
+    def poison(
         self,
-        x: np.ndarray,
-        y: List[Dict[str, np.ndarray]],
+        x: np.ndarray | list[np.ndarray],
+        y: list[dict[str, np.ndarray]],
         **kwargs,
-    ) -> Tuple[np.ndarray, List[Dict[str, np.ndarray]]]:
+    ) -> tuple[np.ndarray | list[np.ndarray], list[dict[str, np.ndarray]]]:
         """
         Generate poisoning examples by inserting the backdoor onto the input `x` and changing the classification
         for labels `y`.
 
-        :param x: Sample images of shape `NCHW` or `NHWC`.
-        :param y: True labels of type `List[Dict[np.ndarray]]`, one dictionary per input image. The keys and values
+        :param x: Sample images of shape `NCHW` or `NHWC` or a list of sample images of any size.
+        :param y: True labels of type `list[dict[np.ndarray]]`, one dictionary per input image. The keys and values
                   of the dictionary are:
 
                   - boxes [N, 4]: the boxes in [x1, y1, x2, y2] format, with 0 <= x1 < x2 <= W and 0 <= y1 < y2 <= H.
                   - labels [N]: the labels for each image.
-                  - scores [N]: the scores or each prediction.
-        :return: An tuple holding the `(poisoning_examples, poisoning_labels)`.
+        :return: A tuple holding the `(poisoning_examples, poisoning_labels)`.
         """
-        x_ndim = len(x.shape)
+        if isinstance(x, np.ndarray):
+            x_ndim = len(x.shape)
+        else:
+            x_ndim = len(x[0].shape) + 1
 
         if x_ndim != 4:
             raise ValueError("Unrecognized input dimension. BadDet GMA can only be applied to image data.")
 
-        if self.channels_first:
-            # NCHW --> NHWC
-            x = np.transpose(x, (0, 2, 3, 1))
-
-        x_poison = x.copy()
-        y_poison: List[Dict[str, np.ndarray]] = []
+        # copy images
+        x_poison: np.ndarray | list[np.ndarray]
+        if isinstance(x, np.ndarray):
+            x_poison = x.copy()
+        else:
+            x_poison = [x_i.copy() for x_i in x]
 
         # copy labels
+        y_poison: list[dict[str, np.ndarray]] = []
         for y_i in y:
             target_dict = {k: v.copy() for k, v in y_i.items()}
             y_poison.append(target_dict)
@@ -120,17 +123,21 @@ class BadDetGlobalMisclassificationAttack(PoisoningAttackObjectDetector):
             image = x_poison[i]
             labels = y_poison[i]["labels"]
 
+            if self.channels_first:
+                image = np.transpose(image, (1, 2, 0))
+
             # insert backdoor into the image
-            # add an additional dimension to create a batch of size 1
+            # add a dimension to create a batch of size 1
             poisoned_input, _ = self.backdoor.poison(image[np.newaxis], labels)
-            x_poison[i] = poisoned_input[0]
+            image = poisoned_input[0]
+
+            # replace the original image with the poisoned image
+            if self.channels_first:
+                image = np.transpose(image, (2, 0, 1))
+            x_poison[i] = image
 
             # change all labels to the target label
             y_poison[i]["labels"] = np.full(labels.shape, self.class_target)
-
-        if self.channels_first:
-            # NHWC --> NCHW
-            x_poison = np.transpose(x_poison, (0, 3, 1, 2))
 
         return x_poison, y_poison
 

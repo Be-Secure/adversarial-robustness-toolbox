@@ -18,11 +18,11 @@
 """
 This module implements classes to evaluate the performance of poison detection methods.
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import json
 import logging
-from typing import Tuple, Union, List
+
 
 import numpy as np
 
@@ -40,8 +40,8 @@ class GroundTruthEvaluator:
         """
 
     def analyze_correctness(
-        self, assigned_clean_by_class: Union[np.ndarray, List[int], List[np.ndarray]], is_clean_by_class: list
-    ) -> Tuple[np.ndarray, str]:
+        self, assigned_clean_by_class: np.ndarray | list[int] | list[np.ndarray], is_clean_by_class: list
+    ) -> tuple[np.ndarray, str]:
         """
         For each training sample, determine whether the activation clustering method was correct.
 
@@ -125,7 +125,7 @@ class GroundTruthEvaluator:
         )
         if (true_positive + false_negative) == 0:
             dic_tp = dict(
-                rate="N/A",
+                rate=-1,
                 numerator=true_positive,
                 denominator=(true_positive + false_negative),
             )
@@ -137,7 +137,7 @@ class GroundTruthEvaluator:
         )
         if (false_positive + true_negative) == 0:
             dic_tn = dict(
-                rate="N/A",
+                rate=-1,
                 numerator=true_negative,
                 denominator=(false_positive + true_negative),
             )
@@ -149,7 +149,7 @@ class GroundTruthEvaluator:
         )
         if (false_positive + true_negative) == 0:
             dic_fp = dict(
-                rate="N/A",
+                rate=-1,
                 numerator=false_positive,
                 denominator=(false_positive + true_negative),
             )
@@ -161,7 +161,7 @@ class GroundTruthEvaluator:
         )
         if (true_positive + false_negative) == 0:
             dic_fn = dict(
-                rate="N/A",
+                rate=-1,
                 numerator=false_negative,
                 denominator=(true_positive + false_negative),
             )

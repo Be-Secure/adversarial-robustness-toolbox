@@ -20,10 +20,10 @@ This module implements the Knockoff Nets attack `KnockoffNets`.
 
 | Paper link: https://arxiv.org/abs/1812.02766
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
-from typing import Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 from tqdm.auto import trange
@@ -97,7 +97,7 @@ class KnockoffNets(ExtractionAttack):
         self.use_probability = use_probability
         self._check_params()
 
-    def extract(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> "CLASSIFIER_TYPE":
+    def extract(self, x: np.ndarray, y: np.ndarray | None = None, **kwargs) -> "CLASSIFIER_TYPE":
         """
         Extract a thieved classifier.
 
@@ -155,7 +155,7 @@ class KnockoffNets(ExtractionAttack):
             y=fake_labels,
             batch_size=self.batch_size_fit,
             nb_epochs=self.nb_epochs,
-            verbose=0,
+            verbose=False,
         )
 
         return thieved_classifier
@@ -243,7 +243,7 @@ class KnockoffNets(ExtractionAttack):
                 y=fake_label,
                 batch_size=self.batch_size_fit,
                 nb_epochs=1,
-                verbose=0,
+                verbose=False,
             )
 
             # Test new labels
@@ -302,7 +302,7 @@ class KnockoffNets(ExtractionAttack):
 
         return x_index[rnd_idx]
 
-    def _reward(self, y_output: np.ndarray, y_hat: np.ndarray, n: int) -> Union[float, np.ndarray]:
+    def _reward(self, y_output: np.ndarray, y_hat: np.ndarray, n: int) -> float | np.ndarray:
         """
         Compute reward value.
 
@@ -373,7 +373,7 @@ class KnockoffNets(ExtractionAttack):
 
         return reward
 
-    def _reward_all(self, y_output: np.ndarray, y_hat: np.ndarray, n: int) -> np.ndarray:
+    def _reward_all(self, y_output: np.ndarray, y_hat: np.ndarray, n: int) -> float:
         """
         Compute `all` reward value.
 
@@ -395,7 +395,7 @@ class KnockoffNets(ExtractionAttack):
         else:
             reward = [max(min(r, 1), 0) for r in reward]
 
-        return np.mean(reward)
+        return float(np.mean(reward))
 
     def _check_params(self) -> None:
         if not isinstance(self.batch_size_fit, int) or self.batch_size_fit <= 0:

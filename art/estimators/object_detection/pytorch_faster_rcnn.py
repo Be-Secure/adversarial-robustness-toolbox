@@ -17,15 +17,18 @@
 # SOFTWARE.
 """
 This module implements the task specific estimator for Faster R-CNN v3 in PyTorch.
-"""
-import logging
-from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 
+| Paper link: https://arxiv.org/abs/1506.01497
+"""
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
 
 from art.estimators.object_detection.pytorch_object_detector import PyTorchObjectDetector
 
 if TYPE_CHECKING:
-    # pylint: disable=C0412
+
     import torch
     import torchvision
 
@@ -38,21 +41,23 @@ logger = logging.getLogger(__name__)
 
 class PyTorchFasterRCNN(PyTorchObjectDetector):
     """
-    This class implements a model-specific object detector using Faster-RCNN and PyTorch following the input and output
+    This class implements a model-specific object detector using Faster R-CNN and PyTorch following the input and output
     formats of torchvision.
+
+    | Paper link: https://arxiv.org/abs/1506.01497
     """
 
     def __init__(
         self,
-        model: Optional["torchvision.models.detection.fasterrcnn_resnet50_fpn"] = None,
-        input_shape: Tuple[int, ...] = (-1, -1, -1),
-        optimizer: Optional["torch.optim.Optimizer"] = None,
-        clip_values: Optional["CLIP_VALUES_TYPE"] = None,
-        channels_first: Optional[bool] = False,
-        preprocessing_defences: Union["Preprocessor", List["Preprocessor"], None] = None,
-        postprocessing_defences: Union["Postprocessor", List["Postprocessor"], None] = None,
+        model: "torchvision.models.detection.FasterRCNN" | None = None,
+        input_shape: tuple[int, ...] = (-1, -1, -1),
+        optimizer: "torch.optim.Optimizer" | None = None,
+        clip_values: "CLIP_VALUES_TYPE" | None = None,
+        channels_first: bool = True,
+        preprocessing_defences: "Preprocessor" | list["Preprocessor"] | None = None,
+        postprocessing_defences: "Postprocessor" | list["Postprocessor"] | None = None,
         preprocessing: "PREPROCESSING_TYPE" = None,
-        attack_losses: Tuple[str, ...] = (
+        attack_losses: tuple[str, ...] = (
             "loss_classifier",
             "loss_box_reg",
             "loss_objectness",
@@ -63,13 +68,13 @@ class PyTorchFasterRCNN(PyTorchObjectDetector):
         """
         Initialization.
 
-        :param model: Faster-RCNN model. The output of the model is `List[Dict[Tensor]]`, one for each input image. The
-                      fields of the Dict are as follows:
+        :param model: Faster R-CNN model. The output of the model is `list[dict[str, torch.Tensor]]`, one for
+                      each input image. The fields of the dict are as follows:
 
-                      - boxes (FloatTensor[N, 4]): the predicted boxes in [x1, y1, x2, y2] format, with values \
-                        between 0 and H and 0 and W
-                      - labels (Int64Tensor[N]): the predicted labels for each image
-                      - scores (Tensor[N]): the scores or each prediction
+                      - boxes [N, 4]: the boxes in [x1, y1, x2, y2] format, with 0 <= x1 < x2 <= W and
+                        0 <= y1 < y2 <= H.
+                      - labels [N]: the labels for each image.
+                      - scores [N]: the scores of each prediction.
         :param input_shape: The shape of one input sample.
         :param optimizer: The optimizer for training the classifier.
         :param clip_values: Tuple of the form `(min, max)` of floats or `np.ndarray` representing the minimum and

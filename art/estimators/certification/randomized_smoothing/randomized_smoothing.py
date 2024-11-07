@@ -20,11 +20,11 @@ This module implements Randomized Smoothing applied to classifier predictions.
 
 | Paper link: https://arxiv.org/abs/1902.02918
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 from abc import ABC
 import logging
-from typing import Optional, Tuple
+
 
 import numpy as np
 from scipy.stats import norm
@@ -69,17 +69,18 @@ class RandomizedSmoothingMixin(ABC):
 
         :param x: Input samples.
         :param batch_size: Size of batches.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of predictions of shape `(nb_inputs, nb_classes)`.
         """
         raise NotImplementedError
 
-    def predict(self, x: np.ndarray, batch_size: int = 128, **kwargs) -> np.ndarray:
+    def predict(self, x: np.ndarray, batch_size: int = 128, verbose: bool = False, **kwargs) -> np.ndarray:
         """
         Perform prediction of the given classifier for a batch of inputs, taking an expectation over transformations.
 
         :param x: Input samples.
         :param batch_size: Batch size.
+        :param verbose: Display training progress bar.
         :param is_abstain: True if function will abstain from prediction and return 0s. Default: True
         :type is_abstain: `boolean`
         :return: Array of predictions of shape `(nb_inputs, nb_classes)`.
@@ -95,7 +96,7 @@ class RandomizedSmoothingMixin(ABC):
         logger.info("Applying randomized smoothing.")
         n_abstained = 0
         prediction = []
-        for x_i in tqdm(x, desc="Randomized smoothing"):
+        for x_i in tqdm(x, desc="Randomized smoothing", disable=not verbose):
             # get class counts
             counts_pred = self._prediction_counts(x_i, batch_size=batch_size)
             top = counts_pred.argsort()[::-1]
@@ -142,7 +143,7 @@ class RandomizedSmoothingMixin(ABC):
         """
         self._fit_classifier(x, y, batch_size=batch_size, nb_epochs=nb_epochs, **kwargs)
 
-    def certify(self, x: np.ndarray, n: int, batch_size: int = 32) -> Tuple[np.ndarray, np.ndarray]:
+    def certify(self, x: np.ndarray, n: int, batch_size: int = 32) -> tuple[np.ndarray, np.ndarray]:
         """
         Computes certifiable radius around input `x` and returns radius `r` and prediction.
 
@@ -175,7 +176,7 @@ class RandomizedSmoothingMixin(ABC):
 
         return np.array(prediction), np.array(radius)
 
-    def _noisy_samples(self, x: np.ndarray, n: Optional[int] = None) -> np.ndarray:
+    def _noisy_samples(self, x: np.ndarray, n: int | None = None) -> np.ndarray:
         """
         Adds Gaussian noise to `x` to generate samples. Optionally augments `y` similarly.
 
@@ -194,7 +195,7 @@ class RandomizedSmoothingMixin(ABC):
 
         return x
 
-    def _prediction_counts(self, x: np.ndarray, n: Optional[int] = None, batch_size: int = 128) -> np.ndarray:
+    def _prediction_counts(self, x: np.ndarray, n: int | None = None, batch_size: int = 128) -> np.ndarray:
         """
         Makes predictions and then converts probability distribution to counts.
 

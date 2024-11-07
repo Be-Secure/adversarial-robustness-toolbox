@@ -18,15 +18,16 @@
 """
 This module implements the classifier `TensorFlowClassifier` for TensorFlow models.
 """
-# pylint: disable=C0302
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
+from collections.abc import Callable
 import logging
 import os
 import random
 import shutil
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from tqdm.auto import tqdm
 
 import numpy as np
 import six
@@ -37,7 +38,7 @@ from art.estimators.tensorflow import TensorFlowEstimator, TensorFlowV2Estimator
 from art.utils import check_and_transform_label_format
 
 if TYPE_CHECKING:
-    # pylint: disable=C0412
+
     import tensorflow.compat.v1 as tf
 
     from art.utils import CLIP_VALUES_TYPE, PREPROCESSING_TYPE
@@ -72,17 +73,17 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         self,
         input_ph: "tf.Placeholder",
         output: "tf.Tensor",
-        labels_ph: Optional["tf.Placeholder"] = None,
-        train: Optional["tf.Tensor"] = None,
-        loss: Optional["tf.Tensor"] = None,
-        learning: Optional["tf.Placeholder"] = None,
-        sess: Optional["tf.Session"] = None,
+        labels_ph: "tf.Placeholder" | None = None,
+        train: "tf.Tensor" | None = None,
+        loss: "tf.Tensor" | None = None,
+        learning: "tf.Placeholder" | None = None,
+        sess: "tf.Session" | None = None,
         channels_first: bool = False,
-        clip_values: Optional["CLIP_VALUES_TYPE"] = None,
-        preprocessing_defences: Union["Preprocessor", List["Preprocessor"], None] = None,
-        postprocessing_defences: Union["Postprocessor", List["Postprocessor"], None] = None,
+        clip_values: "CLIP_VALUES_TYPE" | None = None,
+        preprocessing_defences: "Preprocessor" | list["Preprocessor"] | None = None,
+        postprocessing_defences: "Postprocessor" | list["Postprocessor"] | None = None,
         preprocessing: "PREPROCESSING_TYPE" = (0.0, 1.0),
-        feed_dict: Optional[Dict[Any, Any]] = None,
+        feed_dict: dict[Any, Any] | None = None,
     ) -> None:
         """
         Initialization specific to TensorFlow models implementation.
@@ -111,7 +112,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         :param feed_dict: A feed dictionary for the session run evaluating the classifier. This dictionary includes all
                           additionally required placeholders except the placeholders defined in this class.
         """
-        # pylint: disable=E0401
+
         import tensorflow.compat.v1 as tf
 
         super().__init__(
@@ -155,7 +156,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
             self._reduce_labels = False
 
     @property
-    def input_shape(self) -> Tuple[int, ...]:
+    def input_shape(self) -> tuple[int, ...]:
         """
         Return the shape of one input sample.
 
@@ -218,7 +219,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         return self._learning  # type: ignore
 
     @property
-    def feed_dict(self) -> Dict[Any, Any]:
+    def feed_dict(self) -> dict[Any, Any]:
         """
         Return the feed dictionary for the session run evaluating the classifier.
 
@@ -226,15 +227,13 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         """
         return self._feed_dict  # type: ignore
 
-    def predict(  # pylint: disable=W0221
-        self, x: np.ndarray, batch_size: int = 128, training_mode: bool = False, **kwargs
-    ) -> np.ndarray:
+    def predict(self, x: np.ndarray, batch_size: int = 128, training_mode: bool = False, **kwargs) -> np.ndarray:
         """
         Perform prediction for a batch of inputs.
 
         :param x: Input samples.
         :param batch_size: Size of batches.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of predictions of shape `(num_inputs, nb_classes)`.
         """
         if self.learning is not None:
@@ -265,7 +264,15 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
 
         return predictions
 
-    def fit(self, x: np.ndarray, y: np.ndarray, batch_size: int = 128, nb_epochs: int = 10, **kwargs) -> None:
+    def fit(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        batch_size: int = 128,
+        nb_epochs: int = 10,
+        verbose: bool = False,
+        **kwargs,
+    ) -> None:
         """
         Fit the classifier on the training set `(x, y)`.
 
@@ -274,6 +281,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
                   shape (nb_samples,).
         :param batch_size: Size of batches.
         :param nb_epochs: Number of epochs to use for training.
+        :param verbose: Display the training progress bar.
         :param kwargs: Dictionary of framework-specific arguments. This parameter is not currently supported for
                TensorFlow and providing it takes no effect.
         """
@@ -294,10 +302,10 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
             y_preprocessed = np.argmax(y_preprocessed, axis=1)
 
         num_batch = int(np.ceil(len(x_preprocessed) / float(batch_size)))
-        ind = np.arange(len(x_preprocessed))
+        ind = np.arange(len(x_preprocessed)).tolist()
 
         # Start training
-        for _ in range(nb_epochs):
+        for _ in tqdm(range(nb_epochs), disable=not verbose, desc="Epochs"):
             # Shuffle the examples
             random.shuffle(ind)
 
@@ -313,13 +321,14 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
                 # Run train step
                 self._sess.run(self.train, feed_dict=feed_dict)
 
-    def fit_generator(self, generator: "DataGenerator", nb_epochs: int = 20, **kwargs) -> None:
+    def fit_generator(self, generator: "DataGenerator", nb_epochs: int = 20, verbose: bool = False, **kwargs) -> None:
         """
         Fit the classifier using the generator that yields batches as specified.
 
         :param generator: Batch generator providing `(x, y)` for each epoch. If the generator can be used for native
                           training in TensorFlow, it will.
         :param nb_epochs: Number of epochs to use for training.
+        :param verbose: Display the training progress bar.
         :param kwargs: Dictionary of framework-specific arguments. This parameter is not currently supported for
                TensorFlow and providing it takes no effect.
         """
@@ -342,8 +351,14 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
                 == (0, 1)
             )
         ):
-            for _ in range(nb_epochs):
-                for _ in range(int(generator.size / generator.batch_size)):  # type: ignore
+            for _ in tqdm(range(nb_epochs), disable=not verbose, desc="Epochs"):
+                gen_size = generator.size
+                if isinstance(gen_size, int):
+                    num_batches = int(gen_size / generator.batch_size)
+                else:
+                    raise ValueError("Number of batches could not be determined from the generator")
+
+                for _ in range(num_batches):
                     i_batch, o_batch = generator.get_batch()
 
                     if self._reduce_labels:
@@ -358,8 +373,12 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         else:
             super().fit_generator(generator, nb_epochs=nb_epochs, **kwargs)
 
-    def class_gradient(  # pylint: disable=W0221
-        self, x: np.ndarray, label: Union[int, List[int], None] = None, training_mode: bool = False, **kwargs
+    def class_gradient(
+        self,
+        x: np.ndarray,
+        label: int | list[int] | np.ndarray | None = None,
+        training_mode: bool = False,
+        **kwargs,
     ) -> np.ndarray:
         """
         Compute per-class derivatives w.r.t. `x`.
@@ -369,7 +388,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
                       output is computed for all samples. If multiple values as provided, the first dimension should
                       match the batch size of `x`, and each value will be used as target for its corresponding sample in
                       `x`. If `None`, then gradients for all classes will be computed for each sample.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of gradients of input features w.r.t. each class in the form
                  `(batch_size, nb_classes, input_shape)` when computing for all classes, otherwise shape becomes
                  `(batch_size, 1, input_shape)` when `label` parameter is specified.
@@ -423,16 +442,14 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
 
         return grads
 
-    def loss_gradient(  # pylint: disable=W0221
-        self, x: np.ndarray, y: np.ndarray, training_mode: bool = False, **kwargs
-    ) -> np.ndarray:
+    def loss_gradient(self, x: np.ndarray, y: np.ndarray, training_mode: bool = False, **kwargs) -> np.ndarray:
         """
         Compute the gradient of the loss function w.r.t. `x`.
 
         :param x: Sample input with shape as expected by the model.
         :param y: Target values (class labels) one-hot-encoded of shape `(nb_samples, nb_classes)` or indices of shape
                   `(nb_samples,)`.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of gradients of the same shape as `x`.
         """
         if self.learning is not None:
@@ -460,9 +477,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
 
         return grads
 
-    def compute_loss(  # pylint: disable=W0221
-        self, x: np.ndarray, y: np.ndarray, reduction: str = "none", **kwargs
-    ) -> np.ndarray:
+    def compute_loss(self, x: np.ndarray, y: np.ndarray, reduction: str = "none", **kwargs) -> np.ndarray:
         """
         Compute the loss of the neural network for samples `x`.
 
@@ -513,7 +528,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         raise NotImplementedError
 
     def _init_class_grads(self, label=None):
-        # pylint: disable=E0401
+
         import tensorflow.compat.v1 as tf
 
         if not hasattr(self, "_class_grads"):
@@ -533,13 +548,13 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
                 if self._class_grads[unique_label] is None:
                     self._class_grads[unique_label] = tf.gradients(self.output[:, unique_label], self.input_ph)[0]
 
-    def _get_layers(self) -> List[str]:
+    def _get_layers(self) -> list[str]:
         """
         Return the hidden layers in the model, if applicable.
 
         :return: The hidden layers in the model, input and output layers excluded.
         """
-        # pylint: disable=E0401
+
         import tensorflow.compat.v1 as tf
 
         # Get the computational graph
@@ -550,7 +565,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         tmp_list = []
         ops = graph.get_operations()
 
-        # pylint: disable=R1702
+        # pylint: disable=too-many-nested-blocks
         for op in ops:
             if op.values():
                 if op.values()[0].get_shape() is not None:
@@ -576,7 +591,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         return result
 
     def get_activations(
-        self, x: np.ndarray, layer: Union[int, str], batch_size: int = 128, framework: bool = False
+        self, x: np.ndarray, layer: int | str, batch_size: int = 128, framework: bool = False
     ) -> np.ndarray:
         """
         Return the output of the specified layer for input `x`. `layer` is specified by layer index (between 0 and
@@ -589,7 +604,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         :param framework: If true, return the intermediate tensor representation of the activation.
         :return: The output of `layer`, where the first dimension is the batch size corresponding to `x`.
         """
-        # pylint: disable=E0401
+
         import tensorflow.compat.v1 as tf
 
         if self.learning is not None:
@@ -638,7 +653,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
 
         return results_array
 
-    def save(self, filename: str, path: Optional[str] = None) -> None:
+    def save(self, filename: str, path: str | None = None) -> None:
         """
         Save a model to file in the format specific to the backend framework. For TensorFlow, .ckpt is used.
 
@@ -646,7 +661,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         :param path: Path of the folder where to store the model. If no path is specified, the model will be stored in
                      the default data location of the library `ART_DATA_PATH`.
         """
-        # pylint: disable=E0611
+
         from tensorflow.python import saved_model
         from tensorflow.python.saved_model import tag_constants
         from tensorflow.python.saved_model.signature_def_utils_impl import predict_signature_def
@@ -673,7 +688,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
 
         logger.info("Model saved in path: %s.", full_path)
 
-    def __getstate__(self) -> Dict[str, Any]:
+    def __getstate__(self) -> dict[str, Any]:
         """
         Use to ensure `TensorFlowClassifier` can be pickled.
 
@@ -714,7 +729,7 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
 
         return state
 
-    def __setstate__(self, state: Dict[str, Any]) -> None:
+    def __setstate__(self, state: dict[str, Any]) -> None:
         """
         Use to ensure `TensorFlowClassifier` can be unpickled.
 
@@ -723,7 +738,6 @@ class TensorFlowClassifier(ClassGradientsMixin, ClassifierMixin, TensorFlowEstim
         self.__dict__.update(state)
 
         # Load and update all functionality related to TensorFlow
-        # pylint: disable=E0611, E0401
         import tensorflow.compat.v1 as tf
         from tensorflow.python.saved_model import tag_constants
 
@@ -800,6 +814,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         + [
             "input_shape",
             "loss_object",
+            "optimizer",
             "train_step",
         ]
     )
@@ -808,13 +823,14 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         self,
         model: Callable,
         nb_classes: int,
-        input_shape: Tuple[int, ...],
-        loss_object: Optional["tf.keras.losses.Loss"] = None,
-        train_step: Optional[Callable] = None,
+        input_shape: tuple[int, ...],
+        loss_object: "tf.keras.losses.Loss" | None = None,
+        optimizer: "tf.keras.optimizers.Optimizer" | None = None,
+        train_step: Callable | None = None,
         channels_first: bool = False,
-        clip_values: Optional["CLIP_VALUES_TYPE"] = None,
-        preprocessing_defences: Union["Preprocessor", List["Preprocessor"], None] = None,
-        postprocessing_defences: Union["Postprocessor", List["Postprocessor"], None] = None,
+        clip_values: "CLIP_VALUES_TYPE" | None = None,
+        preprocessing_defences: "Preprocessor" | list["Preprocessor"] | None = None,
+        postprocessing_defences: "Postprocessor" | list["Postprocessor"] | None = None,
         preprocessing: "PREPROCESSING_TYPE" = (0.0, 1.0),
     ) -> None:
         """
@@ -824,10 +840,12 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         :param nb_classes: the number of classes in the classification task.
         :param input_shape: shape of one input for the classifier, e.g. for MNIST input_shape=(28, 28, 1).
         :param loss_object: The loss function for which to compute gradients. This parameter is applied for training
-            the model and computing gradients of the loss w.r.t. the input.
-        :type loss_object: `tf.keras.losses`
+               the model and computing gradients of the loss w.r.t. the input.
+        :param optimizer: The optimizer used to train the classifier.
         :param train_step: A function that applies a gradient update to the trainable variables with signature
-                           train_step(model, images, labels).
+               `train_step(model, images, labels)`. This will override the default training loop that uses the
+               provided `loss_object` and `optimizer` parameters. It is recommended to use the `@tf.function`
+               decorator, if possible, for efficient training.
         :param channels_first: Set channels first or last.
         :param clip_values: Tuple of the form `(min, max)` of floats or `np.ndarray` representing the minimum and
                maximum values allowed for features. If floats are provided, these will be used as the range of all
@@ -853,6 +871,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         self.nb_classes = nb_classes
         self._input_shape = input_shape
         self._loss_object = loss_object
+        self._optimizer = optimizer
         self._train_step = train_step
 
         # Check if the loss function requires as input index labels instead of one-hot-encoded labels
@@ -862,7 +881,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
             self._reduce_labels = False
 
     @property
-    def input_shape(self) -> Tuple[int, ...]:
+    def input_shape(self) -> tuple[int, ...]:
         """
         Return the shape of one input sample.
 
@@ -880,6 +899,15 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         return self._loss_object  # type: ignore
 
     @property
+    def optimizer(self) -> "tf.keras.optimizers.Optimizer":
+        """
+        Return the optimizer.
+
+        :return: The optimizer.
+        """
+        return self._optimizer  # type: ignore
+
+    @property
     def train_step(self) -> Callable:
         """
         Return the function that applies a gradient update to the trainable variables.
@@ -888,15 +916,13 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         """
         return self._train_step  # type: ignore
 
-    def predict(  # pylint: disable=W0221
-        self, x: np.ndarray, batch_size: int = 128, training_mode: bool = False, **kwargs
-    ) -> np.ndarray:
+    def predict(self, x: np.ndarray, batch_size: int = 128, training_mode: bool = False, **kwargs) -> np.ndarray:
         """
         Perform prediction for a batch of inputs.
 
         :param x: Input samples.
         :param batch_size: Size of batches.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of predictions of shape `(nb_inputs, nb_classes)`.
         """
         # Apply preprocessing
@@ -926,7 +952,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         Perform prediction for a batch of inputs.
 
         :param x: Input samples.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of predictions of shape `(nb_inputs, nb_classes)`.
         """
         # Apply preprocessing
@@ -934,7 +960,15 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
 
         return self._model(x_preprocessed, training=training_mode)
 
-    def fit(self, x: np.ndarray, y: np.ndarray, batch_size: int = 128, nb_epochs: int = 10, **kwargs) -> None:
+    def fit(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        batch_size: int = 128,
+        nb_epochs: int = 10,
+        verbose: bool = False,
+        **kwargs,
+    ) -> None:
         """
         Fit the classifier on the training set `(x, y)`.
 
@@ -943,15 +977,37 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
                   shape (nb_samples,).
         :param batch_size: Size of batches.
         :param nb_epochs: Number of epochs to use for training.
-        :param kwargs: Dictionary of framework-specific arguments. This parameter is not currently supported for
-               TensorFlow and providing it takes no effect.
+        :param verbose: Display training progress bar.
+        :param kwargs: Dictionary of framework-specific arguments. This parameter currently supports
+                       "scheduler" which is an optional function that will be called at the end of every
+                       epoch to adjust the learning rate.
         """
         import tensorflow as tf
 
         if self._train_step is None:  # pragma: no cover
-            raise TypeError(
-                "The training function `train_step` is required for fitting a model but it has not been " "defined."
-            )
+            if self._loss_object is None:  # pragma: no cover
+                raise TypeError(
+                    "A loss function `loss_object` or training function `train_step` is required for fitting the "
+                    "model, but it has not been defined."
+                )
+            if self._optimizer is None:  # pragma: no cover
+                raise ValueError(
+                    "An optimizer `optimizer` or training function `train_step` is required for fitting the "
+                    "model, but it has not been defined."
+                )
+
+            @tf.function
+            def train_step(model, images, labels):
+                with tf.GradientTape() as tape:
+                    predictions = model(images, training=True)
+                    loss = self.loss_object(labels, predictions)
+                gradients = tape.gradient(loss, model.trainable_variables)
+                self.optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        else:
+            train_step = self._train_step
+
+        scheduler = kwargs.get("scheduler")
 
         y = check_and_transform_label_format(y, nb_classes=self.nb_classes)
 
@@ -964,27 +1020,52 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
 
         train_ds = tf.data.Dataset.from_tensor_slices((x_preprocessed, y_preprocessed)).shuffle(10000).batch(batch_size)
 
-        for _ in range(nb_epochs):
+        for epoch in tqdm(range(nb_epochs), disable=not verbose, desc="Epochs"):
             for images, labels in train_ds:
-                self._train_step(self.model, images, labels)
+                train_step(self.model, images, labels)
 
-    def fit_generator(self, generator: "DataGenerator", nb_epochs: int = 20, **kwargs) -> None:
+            if scheduler is not None:
+                scheduler(epoch)
+
+    def fit_generator(self, generator: "DataGenerator", nb_epochs: int = 20, verbose: bool = False, **kwargs) -> None:
         """
         Fit the classifier using the generator that yields batches as specified.
 
         :param generator: Batch generator providing `(x, y)` for each epoch. If the generator can be used for native
                           training in TensorFlow, it will.
         :param nb_epochs: Number of epochs to use for training.
-        :param kwargs: Dictionary of framework-specific arguments. This parameter is not currently supported for
-               TensorFlow and providing it takes no effect.
+        :param verbose: Display training progress bar.
+        :param kwargs: Dictionary of framework-specific arguments. This parameter currently supports
+                       "scheduler" which is an optional function that will be called at the end of every
+                       epoch to adjust the learning rate.
         """
         import tensorflow as tf
         from art.data_generators import TensorFlowV2DataGenerator
 
         if self._train_step is None:  # pragma: no cover
-            raise TypeError(
-                "The training function `train_step` is required for fitting a model but it has not been " "defined."
-            )
+            if self._loss_object is None:  # pragma: no cover
+                raise TypeError(
+                    "A loss function `loss_object` or training function `train_step` is required for fitting the "
+                    "model, but it has not been defined."
+                )
+            if self._optimizer is None:  # pragma: no cover
+                raise ValueError(
+                    "An optimizer `optimizer` or training function `train_step` is required for fitting the "
+                    "model, but it has not been defined."
+                )
+
+            @tf.function
+            def train_step(model, images, labels):
+                with tf.GradientTape() as tape:
+                    predictions = model(images, training=True)
+                    loss = self.loss_object(labels, predictions)
+                gradients = tape.gradient(loss, model.trainable_variables)
+                self.optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        else:
+            train_step = self._train_step
+
+        scheduler = kwargs.get("scheduler")
 
         # Train directly in TensorFlow
         from art.preprocessing.standardisation_mean_std.tensorflow import StandardisationMeanStdTensorFlow
@@ -1000,17 +1081,24 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
                 == (0, 1)
             )
         ):
-            for _ in range(nb_epochs):
+            for epoch in tqdm(range(nb_epochs), disable=not verbose, desc="Epochs"):
                 for i_batch, o_batch in generator.iterator:
                     if self._reduce_labels:
                         o_batch = tf.math.argmax(o_batch, axis=1)
-                    self._train_step(self._model, i_batch, o_batch)
+                    train_step(self._model, i_batch, o_batch)
+
+                if scheduler is not None:
+                    scheduler(epoch)
         else:
             # Fit a generic data generator through the API
             super().fit_generator(generator, nb_epochs=nb_epochs)
 
-    def class_gradient(  # pylint: disable=W0221
-        self, x: np.ndarray, label: Union[int, List[int], None] = None, training_mode: bool = False, **kwargs
+    def class_gradient(
+        self,
+        x: np.ndarray,
+        label: int | list[int] | np.ndarray | None = None,
+        training_mode: bool = False,
+        **kwargs,
     ) -> np.ndarray:
         """
         Compute per-class derivatives w.r.t. `x`.
@@ -1020,7 +1108,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
                       output is computed for all samples. If multiple values as provided, the first dimension should
                       match the batch size of `x`, and each value will be used as target for its corresponding sample in
                       `x`. If `None`, then gradients for all classes will be computed for each sample.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of gradients of input features w.r.t. each class in the form
                  `(batch_size, nb_classes, input_shape)` when computing for all classes, otherwise shape becomes
                  `(batch_size, 1, input_shape)` when `label` parameter is specified.
@@ -1096,10 +1184,10 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
 
         return gradients
 
-    def compute_loss(  # pylint: disable=W0221
+    def compute_loss(
         self,
-        x: Union[np.ndarray, "tf.Tensor"],
-        y: Union[np.ndarray, "tf.Tensor"],
+        x: np.ndarray | "tf.Tensor",
+        y: np.ndarray | "tf.Tensor",
         reduction: str = "none",
         training_mode: bool = False,
         **kwargs,
@@ -1114,7 +1202,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
                    'none': no reduction will be applied
                    'mean': the sum of the output will be divided by the number of elements in the output,
                    'sum': the output will be summed.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of losses of the same shape as `x`.
         """
         import tensorflow as tf
@@ -1149,10 +1237,10 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
 
     def compute_losses(
         self,
-        x: Union[np.ndarray, "tf.Tensor"],
-        y: Union[np.ndarray, "tf.Tensor"],
+        x: np.ndarray | "tf.Tensor",
+        y: np.ndarray | "tf.Tensor",
         reduction: str = "none",
-    ) -> Dict[str, Union[np.ndarray, "tf.Tensor"]]:
+    ) -> dict[str, np.ndarray | "tf.Tensor"]:
         """
         Compute all loss components.
 
@@ -1167,19 +1255,19 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         """
         return {"total": self.compute_loss(x=x, y=y, reduction=reduction)}
 
-    def loss_gradient(  # pylint: disable=W0221
+    def loss_gradient(
         self,
-        x: Union[np.ndarray, "tf.Tensor"],
-        y: Union[np.ndarray, "tf.Tensor"],
+        x: np.ndarray | "tf.Tensor",
+        y: np.ndarray | "tf.Tensor",
         training_mode: bool = False,
         **kwargs,
-    ) -> Union[np.ndarray, "tf.Tensor"]:
+    ) -> np.ndarray | "tf.Tensor":
         """
         Compute the gradient of the loss function w.r.t. `x`.
 
         :param x: Sample input with shape as expected by the model.
         :param y: Correct labels, one-vs-rest encoding.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of gradients of the same shape as `x`.
         """
         import tensorflow as tf
@@ -1251,8 +1339,8 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
             optimizer=optimizer,
             loss=self.model.loss,
             metrics=self.model.metrics,
-            loss_weights=self.model.compiled_loss._loss_weights,  # pylint: disable=W0212
-            weighted_metrics=self.model.compiled_metrics._weighted_metrics,  # pylint: disable=W0212
+            loss_weights=self.model.compiled_loss._loss_weights,
+            weighted_metrics=self.model.compiled_metrics._weighted_metrics,
             run_eagerly=self.model.run_eagerly,
         )
 
@@ -1260,9 +1348,10 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         params = self.get_params()
         del params["model"]
         clone.set_params(**params)
-        clone._train_step = self._train_step  # pylint: disable=W0212
-        clone._reduce_labels = self._reduce_labels  # pylint: disable=W0212
-        clone._loss_object = self._loss_object  # pylint: disable=W0212
+        clone._train_step = self._train_step
+        clone._reduce_labels = self._reduce_labels
+        clone._loss_object = self._loss_object
+        clone._optimizer = self._optimizer
         return clone
 
     def reset(self) -> None:
@@ -1305,7 +1394,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         raise NotImplementedError
 
     @property
-    def layer_names(self) -> Optional[List[str]]:
+    def layer_names(self) -> list[str] | None:
         """
         Return the hidden layers in the model, if applicable.
 
@@ -1324,8 +1413,8 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
         return None  # type: ignore
 
     def get_activations(  # type: ignore
-        self, x: np.ndarray, layer: Union[int, str], batch_size: int = 128, framework: bool = False
-    ) -> Optional[np.ndarray]:
+        self, x: np.ndarray, layer: int | str, batch_size: int = 128, framework: bool = False
+    ) -> np.ndarray | None:
         """
         Return the output of the specified layer for input `x`. `layer` is specified by layer index (between 0 and
         `nb_layers - 1`) or by name. The number of layers can be determined by counting the results returned by
@@ -1388,7 +1477,7 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
 
         return activations
 
-    def save(self, filename: str, path: Optional[str] = None) -> None:
+    def save(self, filename: str, path: str | None = None) -> None:
         """
         Save a model to file in the format specific to the backend framework. For TensorFlow, .ckpt is used.
 
@@ -1401,8 +1490,8 @@ class TensorFlowV2Classifier(ClassGradientsMixin, ClassifierMixin, TensorFlowV2E
     def __repr__(self):
         repr_ = (
             f"{self.__module__ + '.' + self.__class__.__name__}(model={self._model}, nb_classes={self.nb_classes}, "
-            f"input_shape={self._input_shape}, loss_object={self._loss_object}, train_step={self._train_step}, "
-            f"channels_first={self.channels_first}, clip_values={self.clip_values!r}, "
+            f"input_shape={self._input_shape}, loss_object={self._loss_object}, optimizer={self.optimizer}, "
+            f"train_step={self._train_step}, channels_first={self.channels_first}, clip_values={self.clip_values!r}, "
             f"preprocessing_defences={self.preprocessing_defences}, "
             f"postprocessing_defences={self.postprocessing_defences}, preprocessing={self.preprocessing})"
         )

@@ -2,6 +2,7 @@
 Classifier API for applying all attacks. Use the :class:`.Classifier` wrapper to be able to apply an attack to a
 preexisting model.
 """
+
 from art.estimators.classification.classifier import (
     ClassifierMixin,
     ClassGradientsMixin,
@@ -17,6 +18,7 @@ from art.estimators.classification.keras import KerasClassifier
 from art.estimators.classification.lightgbm import LightGBMClassifier
 from art.estimators.classification.mxnet import MXClassifier
 from art.estimators.classification.pytorch import PyTorchClassifier
+from art.estimators.classification.hugging_face import HuggingFaceClassifierPyTorch
 from art.estimators.classification.query_efficient_bb import QueryEfficientGradientEstimationClassifier
 from art.estimators.classification.scikitlearn import SklearnClassifier
 from art.estimators.classification.tensorflow import (

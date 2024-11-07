@@ -20,12 +20,12 @@ This module implements the universal adversarial perturbations attack `TargetedU
 
 | Paper link: https://arxiv.org/abs/1911.06502
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
 import random
 import types
-from typing import Any, Dict, Optional, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -60,20 +60,25 @@ class TargetedUniversalPerturbation(EvasionAttack):
         self,
         classifier: "CLASSIFIER_TYPE",
         attacker: str = "fgsm",
-        attacker_params: Optional[Dict[str, Any]] = None,
+        attacker_params: dict[str, Any] | None = None,
         delta: float = 0.2,
         max_iter: int = 20,
         eps: float = 10.0,
-        norm: Union[int, float, str] = np.inf,
+        norm: int | float | str = np.inf,
     ):
         """
         :param classifier: A trained classifier.
-        :param attacker: Adversarial attack name. Default is 'deepfool'. Supported names: 'fgsm'.
+        :param attacker: Adversarial attack name. Default is 'fgsm'. Supported names: 'simba'.
         :param attacker_params: Parameters specific to the adversarial attack. If this parameter is not specified,
                                 the default parameters of the chosen attack will be used.
-        :param delta: desired accuracy
+        :param delta: The maximum acceptable rate of correctly classified adversarial examples by the classifier.
+                      The attack will stop when the targeted success rate exceeds `(1 - delta)`.
+                      'delta' should be in the range `[0, 1]`.
         :param max_iter: The maximum number of iterations for computing universal perturbation.
-        :param eps: Attack step size (input variation)
+        :param eps: The perturbation magnitude, which controls the strength of the universal perturbation applied
+                    to the input samples. A larger `eps` value will result in a more noticeable perturbation,
+                    potentially leading to higher attack success rates but also increasing the visual distortion
+                    in the generated adversarial examples. Default is `10.0`.
         :param norm: The norm of the adversarial perturbation. Possible values: "inf", np.inf, 2
         """
         super().__init__(estimator=classifier)
@@ -87,13 +92,16 @@ class TargetedUniversalPerturbation(EvasionAttack):
         self._targeted = True
         self._check_params()
 
-    def generate(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> np.ndarray:
+    def generate(self, x: np.ndarray, y: np.ndarray | None = None, **kwargs) -> np.ndarray:
         """
         Generate adversarial samples and return them in an array.
 
         :param x: An array with the original inputs.
-        :param y: An array with the targeted labels.
+        :param y: The target labels for the targeted perturbation. The shape of y should match the number of instances
+                  in x.
         :return: An array holding the adversarial examples.
+        :raises: `ValueError`: if the labels `y` are None or if the attack has not been tested for binary
+                 classification with a single output classifier.
         """
         if y is None:
             raise ValueError("Labels `y` cannot be None.")
@@ -165,7 +173,6 @@ class TargetedUniversalPerturbation(EvasionAttack):
         return x_adv
 
     def _check_params(self) -> None:
-
         if not isinstance(self.delta, (float, int)) or self.delta < 0 or self.delta > 1:
             raise ValueError("The desired accuracy must be in the range [0, 1].")
 
@@ -175,7 +182,7 @@ class TargetedUniversalPerturbation(EvasionAttack):
         if not isinstance(self.eps, (float, int)) or self.eps <= 0:
             raise ValueError("The eps coefficient must be a positive float.")
 
-    def _get_attack(self, a_name: str, params: Optional[Dict[str, Any]] = None) -> EvasionAttack:
+    def _get_attack(self, a_name: str, params: dict[str, Any] | None = None) -> EvasionAttack:
         """
         Get an attack object from its name.
 

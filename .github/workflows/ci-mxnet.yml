@@ -28,16 +28,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: mxnet (Python 3.8)
+          - name: mxnet (Python 3.9)
             framework: mxnet
-            python: 3.8
+            python: 3.9
 
     name: Run ${{ matrix.name }} Tests
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
       - name: Install Dependencies
@@ -45,13 +45,12 @@ jobs:
           sudo apt-get update
           sudo apt-get -y -q install ffmpeg libavcodec-extra
           python -m pip install --upgrade pip setuptools wheel
-          pip install tensorflow==2.4.1
-          pip install keras==2.4.3
-          pip3 install -q -r requirements_test.txt
+          pip install -q -r <(sed '/^ultralytics/d;/^ipython/d' requirements_test.txt)
           pip list
       - name: Run ${{ matrix.name }} ${{ matrix.module }} Tests
         run: ./run_tests.sh ${{ matrix.framework }} ${{ matrix.module }}
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true

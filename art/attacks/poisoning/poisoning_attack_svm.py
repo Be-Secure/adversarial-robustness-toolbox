@@ -18,10 +18,9 @@
 """
 This module implements poisoning attacks on Support Vector Machines.
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -49,6 +48,7 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
         "y_train",
         "x_val",
         "y_val",
+        "max_iter",
         "verbose",
     ]
     _estimator_requirements = (ScikitlearnSVC,)
@@ -56,13 +56,13 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
     def __init__(
         self,
         classifier: "ScikitlearnSVC",
-        step: Optional[float] = None,
-        eps: Optional[float] = None,
-        x_train: Optional[np.ndarray] = None,
-        y_train: Optional[np.ndarray] = None,
-        x_val: Optional[np.ndarray] = None,
-        y_val: Optional[np.ndarray] = None,
-        max_iter: int = 100,
+        step: float,
+        eps: float,
+        x_train: np.ndarray,
+        y_train: np.ndarray,
+        x_val: np.ndarray,
+        y_val: np.ndarray,
+        max_iter: int,
         verbose: bool = True,
     ) -> None:
         """
@@ -79,7 +79,7 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
         :raises `NotImplementedError`, `TypeError`: If the argument classifier has the wrong type.
         :param verbose: Show progress bars.
         """
-        # pylint: disable=W0212
+
         from sklearn.svm import LinearSVC, SVC
 
         super().__init__(classifier=classifier)
@@ -103,7 +103,7 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
         self.verbose = verbose
         self._check_params()
 
-    def poison(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> Tuple[np.ndarray, np.ndarray]:
+    def poison(self, x: np.ndarray, y: np.ndarray | None = None, **kwargs) -> tuple[np.ndarray, np.ndarray]:
         """
         Iteratively finds optimal attack points starting at values at `x`.
 
@@ -151,7 +151,7 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
         :param y_attack: The initial attack label.
         :return: A tuple containing the final attack point and the poisoned model.
         """
-        # pylint: disable=W0212
+
         from sklearn.preprocessing import normalize
 
         if self.y_train is None or self.x_train is None:
@@ -196,7 +196,7 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
         :param vec: An input array.
         :return: An array of -1/1 predictions.
         """
-        # pylint: disable=W0212
+
         preds = self.estimator.model.predict(vec)
         return 2 * preds - 1
 
@@ -209,7 +209,7 @@ class PoisoningAttackSVM(PoisoningAttackWhiteBox):
         :param tol: Tolerance level.
         :return: The attack gradient.
         """
-        # pylint: disable=W0212
+
         if self.x_val is None or self.y_val is None:  # pragma: no cover
             raise ValueError("The values of `x_val` and `y_val` are required for computing the gradients.")
 

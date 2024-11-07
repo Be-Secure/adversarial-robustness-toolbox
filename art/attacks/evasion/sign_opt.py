@@ -44,9 +44,10 @@ hard-label adversarial attack.
 
 | Paper link: https://arxiv.org/pdf/1909.10773.pdf
 """
+from __future__ import annotations
 
 import logging
-from typing import Optional, TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 import time
 
 import numpy as np
@@ -145,7 +146,7 @@ class SignOPTAttack(EvasionAttack):
             self.enable_clipped = False
         self._check_params()
 
-    def generate(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> np.ndarray:
+    def generate(self, x: np.ndarray, y: np.ndarray | None = None, **kwargs) -> np.ndarray:
         """
         Generate adversarial samples and return them in an array.
 
@@ -234,8 +235,8 @@ class SignOPTAttack(EvasionAttack):
         theta: np.ndarray,
         initial_lbd: float,
         current_best: float,
-        target: Optional[int] = None,
-    ) -> Tuple[float, int]:
+        target: int | None = None,
+    ) -> tuple[float, int]:
         """
         Perform fine-grained line search plus binary search for finding a good starting direction
 
@@ -285,10 +286,10 @@ class SignOPTAttack(EvasionAttack):
         x_0: np.ndarray,
         y_0: int,
         theta: np.ndarray,
-        target: Optional[int] = None,
+        target: int | None = None,
         initial_lbd: float = 1.0,
         tol: float = 1e-5,
-    ) -> Tuple[float, int]:
+    ) -> tuple[float, int]:
         """
         Perform the line search in a local region plus binary search.
         Details in paper (Chen and Zhang, 2019), paper link: https://openreview.net/pdf?id=rJlk6iRqKX
@@ -306,14 +307,14 @@ class SignOPTAttack(EvasionAttack):
         lbd = initial_lbd
         # For targeted: we want to expand(x1.01) boundary away from targeted dataset
         # For untargeted, we want to slim(x0.99) the boundary toward the original dataset
-        if (not self._is_label(x_0 + lbd * theta, target) and self.targeted) or (
-            self._is_label(x_0 + lbd * theta, y_0) and not self.targeted
+        if (self.targeted and not self._is_label(x_0 + lbd * theta, target)) or (
+            not self.targeted and self._is_label(x_0 + lbd * theta, y_0)
         ):
             lbd_lo = lbd
             lbd_hi = lbd * 1.01
             nquery += 1
-            while (not self._is_label(x_0 + lbd_hi * theta, target) and self.targeted) or (
-                self._is_label(x_0 + lbd_hi * theta, y_0) and not self.targeted
+            while (self.targeted and not self._is_label(x_0 + lbd_hi * theta, target)) or (
+                not self.targeted and self._is_label(x_0 + lbd_hi * theta, y_0)
             ):
                 lbd_hi = lbd_hi * 1.01
                 nquery += 1
@@ -323,8 +324,8 @@ class SignOPTAttack(EvasionAttack):
             lbd_hi = lbd
             lbd_lo = lbd * 0.99
             nquery += 1
-            while (self._is_label(x_0 + lbd_lo * theta, target) and self.targeted) or (
-                not self._is_label(x_0 + lbd_lo * theta, y_0) and not self.targeted
+            while (self.targeted and self._is_label(x_0 + lbd_lo * theta, target)) or (
+                not self.targeted and not self._is_label(x_0 + lbd_lo * theta, y_0)
             ):
                 lbd_lo = lbd_lo * 0.99
                 nquery += 1
@@ -332,15 +333,15 @@ class SignOPTAttack(EvasionAttack):
         while (lbd_hi - lbd_lo) > tol:
             lbd_mid = (lbd_lo + lbd_hi) / 2.0
             nquery += 1
-            if (self._is_label(x_0 + lbd_mid * theta, target) and self.targeted) or (
-                not self._is_label(x_0 + lbd_mid * theta, y_0) and not self.targeted
+            if (self.targeted and self._is_label(x_0 + lbd_mid * theta, target)) or (
+                not self.targeted and not self._is_label(x_0 + lbd_mid * theta, y_0)
             ):
                 lbd_hi = lbd_mid
             else:
                 lbd_lo = lbd_mid
         return lbd_hi, nquery
 
-    def _is_label(self, x_0: np.ndarray, label: Optional[int]) -> bool:
+    def _is_label(self, x_0: np.ndarray, label: int | None) -> bool:
         """
         Helper method to check if self.estimator predict input with label
 
@@ -367,8 +368,8 @@ class SignOPTAttack(EvasionAttack):
         return np.argmax(pred)
 
     def _sign_grad(
-        self, x_0: np.ndarray, y_0: int, epsilon: float, theta: np.ndarray, initial_lbd: float, target: Optional[int]
-    ) -> Tuple[np.ndarray, int]:
+        self, x_0: np.ndarray, y_0: int, epsilon: float, theta: np.ndarray, initial_lbd: float, target: int | None
+    ) -> tuple[np.ndarray, int]:
         """
         Evaluate the sign of gradient
 
@@ -410,10 +411,10 @@ class SignOPTAttack(EvasionAttack):
         self,
         x_0: np.ndarray,
         y_0: int,
-        target: Optional[int] = None,
-        x_init: Optional[np.ndarray] = None,
-        distortion: Optional[float] = None,
-    ) -> Tuple[np.ndarray, np.ndarray, bool]:
+        target: int | None = None,
+        x_init: np.ndarray | None = None,
+        distortion: float | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, bool]:
         """
         Perform attack
 

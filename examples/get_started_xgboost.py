@@ -4,6 +4,7 @@ and creates adversarial examples using the Zeroth Order Optimization attack. Her
 ART classifier.
 The parameters are chosen for reduced computational requirements of the script and not optimised for accuracy.
 """
+
 import xgboost as xgb
 import numpy as np
 
@@ -27,7 +28,7 @@ x_test = x_test.reshape((nb_samples_test, 28 * 28))
 
 # Step 2: Create the model
 
-params = {"objective": "multi:softprob", "metric": "accuracy", "num_class": 10}
+params = {"objective": "multi:softprob", "eval_metric": ["mlogloss", "merror"], "num_class": 10}
 dtrain = xgb.DMatrix(x_train, label=np.argmax(y_train, axis=1))
 dtest = xgb.DMatrix(x_test, label=np.argmax(y_test, axis=1))
 evals = [(dtest, "test"), (dtrain, "train")]

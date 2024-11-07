@@ -20,14 +20,13 @@ This module implements Randomized Smoothing applied to classifier predictions.
 
 | Paper link: https://arxiv.org/abs/1902.02918
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
-from typing import List, Optional, Tuple, Union, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import warnings
-import random
-from tqdm import tqdm
+from tqdm.auto import trange
 import numpy as np
 
 from art.config import ART_NUMPY_DTYPE
@@ -36,7 +35,7 @@ from art.estimators.certification.randomized_smoothing.randomized_smoothing impo
 from art.utils import check_and_transform_label_format
 
 if TYPE_CHECKING:
-    # pylint: disable=C0412
+
     import torch
 
     from art.utils import CLIP_VALUES_TYPE, PREPROCESSING_TYPE
@@ -60,13 +59,13 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
         self,
         model: "torch.nn.Module",
         loss: "torch.nn.modules.loss._Loss",
-        input_shape: Tuple[int, ...],
+        input_shape: tuple[int, ...],
         nb_classes: int,
-        optimizer: Optional["torch.optim.Optimizer"] = None,  # type: ignore
+        optimizer: "torch.optim.Optimizer" | None = None,
         channels_first: bool = True,
-        clip_values: Optional["CLIP_VALUES_TYPE"] = None,
-        preprocessing_defences: Union["Preprocessor", List["Preprocessor"], None] = None,
-        postprocessing_defences: Union["Postprocessor", List["Postprocessor"], None] = None,
+        clip_values: "CLIP_VALUES_TYPE" | None = None,
+        preprocessing_defences: "Preprocessor" | list["Preprocessor"] | None = None,
+        postprocessing_defences: "Postprocessor" | list["Postprocessor"] | None = None,
         preprocessing: "PREPROCESSING_TYPE" = (0.0, 1.0),
         device_type: str = "gpu",
         sample_size: int = 32,
@@ -129,7 +128,7 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
         x = x.astype(ART_NUMPY_DTYPE)
         return PyTorchClassifier.fit(self, x, y, batch_size=batch_size, nb_epochs=nb_epochs, **kwargs)
 
-    def fit(  # pylint: disable=W0221
+    def fit(
         self,
         x: np.ndarray,
         y: np.ndarray,
@@ -137,7 +136,8 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
         nb_epochs: int = 10,
         training_mode: bool = True,
         drop_last: bool = False,
-        scheduler: Optional[Any] = None,
+        scheduler: "torch.optim.lr_scheduler._LRScheduler" | None = None,
+        verbose: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -148,15 +148,17 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
                   shape (nb_samples,).
         :param batch_size: Size of batches.
         :param nb_epochs: Number of epochs to use for training.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :param drop_last: Set to ``True`` to drop the last incomplete batch, if the dataset size is not divisible by
                           the batch size. If ``False`` and the size of dataset is not divisible by the batch size, then
                           the last batch will be smaller. (default: ``False``)
         :param scheduler: Learning rate scheduler to run at the start of every epoch.
+        :param verbose: Display the training progress bar.
         :param kwargs: Dictionary of framework-specific arguments. This parameter is not currently supported for PyTorch
                and providing it takes no effect.
         """
         import torch
+        from torch.utils.data import TensorDataset, DataLoader
 
         # Set model mode
         self._model.train(mode=training_mode)
@@ -172,36 +174,28 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
         # Check label shape
         y_preprocessed = self.reduce_labels(y_preprocessed)
 
-        num_batch = len(x_preprocessed) / float(batch_size)
-        if drop_last:
-            num_batch = int(np.floor(num_batch))
-        else:
-            num_batch = int(np.ceil(num_batch))
-        ind = np.arange(len(x_preprocessed))
-        std = torch.tensor(self.scale).to(self._device)
-
-        x_preprocessed = torch.from_numpy(x_preprocessed).to(self._device)
-        y_preprocessed = torch.from_numpy(y_preprocessed).to(self._device)
+        # Create dataloader
+        x_tensor = torch.from_numpy(x_preprocessed)
+        y_tensor = torch.from_numpy(y_preprocessed)
+        dataset = TensorDataset(x_tensor, y_tensor)
+        dataloader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True, drop_last=drop_last)
 
         # Start training
-        for _ in tqdm(range(nb_epochs)):
-            # Shuffle the examples
-            random.shuffle(ind)
-
-            # Train for one epoch
-            for m in range(num_batch):
-                i_batch = x_preprocessed[ind[m * batch_size : (m + 1) * batch_size]]
-                o_batch = y_preprocessed[ind[m * batch_size : (m + 1) * batch_size]]
+        for _ in trange(nb_epochs, disable=not verbose):
+            for x_batch, y_batch in dataloader:
+                # Move inputs to device
+                x_batch = x_batch.to(self._device)
+                y_batch = y_batch.to(self._device)
 
                 # Add random noise for randomized smoothing
-                i_batch = i_batch + torch.randn_like(i_batch, device=self._device) * std
+                x_batch += torch.randn_like(x_batch) * self.scale
 
                 # Zero the parameter gradients
                 self._optimizer.zero_grad()
 
                 # Perform prediction
                 try:
-                    model_outputs = self._model(i_batch)
+                    model_outputs = self._model(x_batch)
                 except ValueError as err:
                     if "Expected more than 1 value per channel when training" in str(err):
                         logger.exception(
@@ -211,11 +205,11 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
                     raise err
 
                 # Form the loss function
-                loss = self._loss(model_outputs[-1], o_batch)
+                loss = self._loss(model_outputs[-1], y_batch)
 
                 # Do training
                 if self._use_amp:  # pragma: no cover
-                    from apex import amp  # pylint: disable=E0611
+                    from apex import amp
 
                     with amp.scale_loss(loss, self._optimizer) as scaled_loss:
                         scaled_loss.backward()
@@ -228,17 +222,22 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
             if scheduler is not None:
                 scheduler.step()
 
-    def predict(self, x: np.ndarray, batch_size: int = 128, **kwargs) -> np.ndarray:  # type: ignore
+    def predict(  # type: ignore
+        self, x: np.ndarray, batch_size: int = 128, verbose: bool = False, **kwargs
+    ) -> np.ndarray:
         """
         Perform prediction of the given classifier for a batch of inputs, taking an expectation over transformations.
 
         :param x: Input samples.
         :param batch_size: Batch size.
+        :param verbose: Display training progress bar.
         :param is_abstain: True if function will abstain from prediction and return 0s. Default: True
         :type is_abstain: `boolean`
         :return: Array of predictions of shape `(nb_inputs, nb_classes)`.
         """
-        return RandomizedSmoothingMixin.predict(self, x, batch_size=batch_size, training_mode=False, **kwargs)
+        return RandomizedSmoothingMixin.predict(
+            self, x, batch_size=batch_size, verbose=verbose, training_mode=False, **kwargs
+        )
 
     def loss_gradient(  # type: ignore
         self, x: np.ndarray, y: np.ndarray, training_mode: bool = False, **kwargs
@@ -249,7 +248,7 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
         :param x: Sample input with shape as expected by the model.
         :param y: Target values (class labels) one-hot-encoded of shape (nb_samples, nb_classes) or indices of shape
                   (nb_samples,).
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :param sampling: True if loss gradients should be determined with Monte Carlo sampling.
         :type sampling: `bool`
         :return: Array of gradients of the same shape as `x`.
@@ -307,7 +306,11 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
         return gradients
 
     def class_gradient(
-        self, x: np.ndarray, label: Union[int, List[int], None] = None, training_mode: bool = False, **kwargs
+        self,
+        x: np.ndarray,
+        label: int | list[int] | np.ndarray | None = None,
+        training_mode: bool = False,
+        **kwargs,
     ) -> np.ndarray:
         """
         Compute per-class derivatives of the given classifier w.r.t. `x` of original classifier.
@@ -317,7 +320,7 @@ class PyTorchRandomizedSmoothing(RandomizedSmoothingMixin, PyTorchClassifier):
                       output is computed for all samples. If multiple values as provided, the first dimension should
                       match the batch size of `x`, and each value will be used as target for its corresponding sample in
                       `x`. If `None`, then gradients for all classes will be computed for each sample.
-        :param training_mode: `True` for model set to training mode and `'False` for model set to evaluation mode.
+        :param training_mode: `True` for model set to training mode and `False` for model set to evaluation mode.
         :return: Array of gradients of input features w.r.t. each class in the form
                  `(batch_size, nb_classes, input_shape)` when computing for all classes, otherwise shape becomes
                  `(batch_size, 1, input_shape)` when `label` parameter is specified.

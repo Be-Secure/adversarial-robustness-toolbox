@@ -4,6 +4,7 @@ dataset and creates adversarial examples using the Fast Gradient Sign Method. He
 the model, it would also be possible to provide a pretrained model to the ART classifier.
 The parameters are chosen for reduced computational requirements of the script and not optimised for accuracy.
 """
+
 import numpy as np
 
 from art.attacks.evasion import FastGradientMethod
@@ -52,26 +53,16 @@ class TensorFlowModel(Model):
         return x
 
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
-
-
-def train_step(model, images, labels):
-    with tf.GradientTape() as tape:
-        predictions = model(images, training=True)
-        loss = loss_object(labels, predictions)
-    gradients = tape.gradient(loss, model.trainable_variables)
-    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-
 model = TensorFlowModel()
 loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
 
 # Step 3: Create the ART classifier
 
 classifier = TensorFlowV2Classifier(
     model=model,
     loss_object=loss_object,
-    train_step=train_step,
+    optimizer=optimizer,
     nb_classes=10,
     input_shape=(28, 28, 1),
     clip_values=(0, 1),

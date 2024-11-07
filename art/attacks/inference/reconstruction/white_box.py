@@ -18,10 +18,9 @@
 """
 This module implements reconstruction attacks.
 """
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals, annotations
 
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 import sklearn
@@ -68,7 +67,7 @@ class DatabaseReconstruction(ReconstructionAttack):
 
         return residual
 
-    def reconstruct(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> Tuple[np.ndarray, np.ndarray]:
+    def reconstruct(self, x: np.ndarray, y: np.ndarray | None = None, **kwargs) -> tuple[np.ndarray, np.ndarray]:
         """
         Infer the missing row from x, y with which `estimator` was trained with.
 
@@ -83,8 +82,8 @@ class DatabaseReconstruction(ReconstructionAttack):
 
         tol = float("inf")
         x_0 = x[0, :]
-        x_guess = None
-        y_guess = None
+        x_guess: np.ndarray | None = None
+        y_guess: int
 
         for _y in range(self.estimator.nb_classes):
             args = (_y, x, y, self._estimator, self.estimator, self.params)
@@ -96,6 +95,9 @@ class DatabaseReconstruction(ReconstructionAttack):
                 tol = _tol
                 x_guess = _x
                 y_guess = _y
+
+        if x_guess is None:
+            raise ValueError("Guessed values are None.")
 
         x_reconstructed = np.expand_dims(x_guess, axis=0)
         y_reconstructed = np.zeros(shape=(1, self.estimator.nb_classes))
